@@ -1,0 +1,318 @@
+// Job portal data model.
+//
+// After editing this file run:  npm run db:migrate
+//
+// Layout: auth tables first (shape required by Better Auth), then domain models.
+
+generator client {
+  provider = "prisma-client"
+  output   = "../src/generated/prisma"
+}
+
+datasource db {
+  provider = "postgresql"
+}
+
+// ---------------------------------------------------------------------------
+// Auth  (field names required by Better Auth - do not rename)
+// ---------------------------------------------------------------------------
+
+model User {
+  id            String   @id @default(cuid())
+  name          String
+  email         String   @unique
+  emailVerified Boolean  @default(false)
+  image         String?
+  createdAt     DateTime @default(now())
+  updatedAt     DateTime @updatedAt
+
+  // Our own additions, declared in src/lib/auth.ts as additionalFields.
+  role  UserRole @default(SEEKER)
+  phone String?
+
+  sessions Session[]
+  accounts Account[]
+
+  // A user is either a seeker or an employer, so at most one of these is set.
+  seekerProfile SeekerProfile?
+  company       Company?
+
+  applications      Application[]
+  savedJobs         SavedJob[]
+  dismissedJobs     DismissedJob[]
+  applicationEvents ApplicationEvent[] @relation("ApplicationEventActor")
+
+  @@index([role])
+  @@map("user")
+}
+
+model Session {
+  id        String   @id @default(cuid())
+  expiresAt DateTime
+  token     String   @unique
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+  ipAddress String?
+  userAgent String?
+
+  userId String
+  user   User   @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([userId])
+  @@map("session")
+}
+
+model Account {
+  id                    String    @id @default(cuid())
+  accountId             String
+  providerId            String
+  accessToken           String?
+  refreshToken          String?
+  idToken               String?
+  accessTokenExpiresAt  DateTime?
+  refreshTokenExpiresAt DateTime?
+  scope                 String?
+  password              String? // password hash for email+password accounts
+  createdAt             DateTime  @default(now())
+  updatedAt             DateTime  @updatedAt
+
+  userId String
+  user   User   @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([userId])
+  @@map("account")
+}
+
+model Verification {
+  id         String   @id @default(cuid())
+  identifier String
+  value      String
+  expiresAt  DateTime
+  createdAt  DateTime @default(now())
+  updatedAt  DateTime @updatedAt
+
+  @@index([identifier])
+  @@map("verification")
+}
+
+// ---------------------------------------------------------------------------
+// Job seekers
+// ---------------------------------------------------------------------------
+
+model SeekerProfile {
+  id              String   @id @default(cuid())
+  headline        String?
+  bio             String?
+  location        String?
+  experienceYears Int?
+  skills          String[] @default([])
+
+  // The resume lives on disk (or S3 later). We store the storage key, never a
+  // public URL - downloads go through an authorised route.
+  resumeKey       String?
+  resumeFilename  String?
+  resumeSize      Int?
+  resumeUpdatedAt DateTime?
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  userId String @unique
+  user   User   @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@map("seeker_profile")
+}
+
+// ---------------------------------------------------------------------------
+// Employers
+// ---------------------------------------------------------------------------
+
+model Company {
+  id          String  @id @default(cuid())
+  name        String
+  slug        String  @unique
+  website     String?
+  description String?
+  location    String?
+  logoKey     String?
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  // One employer account owns one company, for now.
+  ownerId String @unique
+  owner   User   @relation(fields: [ownerId], references: [id], onDelete: Cascade)
+
+  jobs Job[]
+
+  @@map("company")
+}
+
+// ---------------------------------------------------------------------------
+// Jobs
+// ---------------------------------------------------------------------------
+
+model Job {
+  id          String  @id @default(cuid())
+  title       String
+  slug        String  @unique
+  description String
+  location    String?
+  isRemote    Boolean @default(false)
+
+  employmentType  EmploymentType
+  experienceLevel ExperienceLevel @default(MID)
+
+  salaryMin      Int?
+  salaryMax      Int?
+  salaryCurrency String @default("INR")
+  salaryPeriod   String @default("YEAR") // YEAR or MONTH
+
+  status      JobStatus @default(DRAFT)
+  publishedAt DateTime?
+  expiresAt   DateTime?
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  companyId String
+  company   Company @relation(fields: [companyId], references: [id], onDelete: Cascade)
+
+  applications Application[]
+  savedBy      SavedJob[]
+  dismissedBy  DismissedJob[]
+
+  // Indexes chosen to match the filters on the /jobs search page.
+  @@index([status, publishedAt])
+  @@index([companyId, status])
+  @@index([employmentType])
+  @@index([experienceLevel])
+  @@index([isRemote])
+  @@map("job")
+}
+
+// ---------------------------------------------------------------------------
+// Applications
+// ---------------------------------------------------------------------------
+
+model Application {
+  id          String            @id @default(cuid())
+  status      ApplicationStatus @default(APPLIED)
+  coverLetter String?
+
+  // Snapshot of the resume as it was when they applied, so a later profile edit
+  // doesn't rewrite history for an employer mid-review.
+  resumeKey      String?
+  resumeFilename String?
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  jobId String
+  job   Job    @relation(fields: [jobId], references: [id], onDelete: Cascade)
+
+  seekerId String
+  seeker   User   @relation(fields: [seekerId], references: [id], onDelete: Cascade)
+
+  events ApplicationEvent[]
+
+  // One application per person per job.
+  @@unique([jobId, seekerId])
+  @@index([seekerId, status])
+  @@index([jobId, status])
+  @@map("application")
+}
+
+/// Append-only history: one row per status change, never updated or deleted.
+/// This is what powers the seeker's timeline and the employer's audit trail.
+model ApplicationEvent {
+  id         String             @id @default(cuid())
+  fromStatus ApplicationStatus?
+  toStatus   ApplicationStatus
+  note       String?
+  createdAt  DateTime           @default(now())
+
+  applicationId String
+  application   Application @relation(fields: [applicationId], references: [id], onDelete: Cascade)
+
+  // Who made the change. Null means the system did it.
+  actorId String?
+  actor   User?   @relation("ApplicationEventActor", fields: [actorId], references: [id], onDelete: SetNull)
+
+  @@index([applicationId, createdAt])
+  @@map("application_event")
+}
+
+// ---------------------------------------------------------------------------
+// Seeker bookmarks and dismissals
+// ---------------------------------------------------------------------------
+
+model SavedJob {
+  id        String   @id @default(cuid())
+  createdAt DateTime @default(now())
+
+  userId String
+  user   User   @relation(fields: [userId], references: [id], onDelete: Cascade)
+  jobId  String
+  job    Job    @relation(fields: [jobId], references: [id], onDelete: Cascade)
+
+  @@unique([userId, jobId])
+  @@map("saved_job")
+}
+
+/// The grown-up version of the prototype's "Decline" - hides a job from this
+/// seeker's results without recording an application.
+model DismissedJob {
+  id        String   @id @default(cuid())
+  createdAt DateTime @default(now())
+
+  userId String
+  user   User   @relation(fields: [userId], references: [id], onDelete: Cascade)
+  jobId  String
+  job    Job    @relation(fields: [jobId], references: [id], onDelete: Cascade)
+
+  @@unique([userId, jobId])
+  @@map("dismissed_job")
+}
+
+// ---------------------------------------------------------------------------
+// Enums
+// ---------------------------------------------------------------------------
+
+enum UserRole {
+  SEEKER
+  EMPLOYER
+  ADMIN
+}
+
+enum EmploymentType {
+  FULL_TIME
+  PART_TIME
+  CONTRACT
+  INTERNSHIP
+  TEMPORARY
+}
+
+enum ExperienceLevel {
+  INTERN
+  ENTRY
+  MID
+  SENIOR
+  LEAD
+}
+
+enum JobStatus {
+  DRAFT
+  PUBLISHED
+  CLOSED
+}
+
+enum ApplicationStatus {
+  APPLIED
+  SHORTLISTED
+  INTERVIEW
+  OFFERED
+  HIRED
+  REJECTED
+  WITHDRAWN
+}

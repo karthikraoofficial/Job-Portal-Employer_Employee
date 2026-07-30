@@ -1,0 +1,193 @@
+/* ===========================================================================
+   DIRECTION CONTRACT — Drawing Office
+
+   THESIS: A job board where an application is a numbered, dated, checkable
+   record. It refuses the card-grid feed the category always ships.
+
+   OWN-WORLD: A drawing office. Black ink on cool drafting film, marked up in
+   orange. Title blocks, revision tables, a line-weight hierarchy, square
+   corners, no shadows. Archivo Narrow as drafting lettering in tracked caps;
+   Archivo for prose.
+
+   STORY: A candidate reads openings as sheets in a numbered register, applies
+   in about a minute, then watches their application accrue signed, dated
+   revisions instead of vanishing into silence.
+
+   FIRST VIEWPORT: A full-bleed black title-block bar (REF / ISSUED /
+   OPENINGS); beneath it a display-scale statement and the search field set as
+   a labelled form entry on a 2px rule; then the register of sheets.
+
+   FORM: Engineering drafting standards — candidate 6 of 7 on the grounded
+   list, seed key df919ebd. Staged on a light film ground, per the brief.
+
+   Full system: ../DESIGN.md
+   =========================================================================== */
+
+@import 'tailwindcss';
+
+@theme {
+  /* --- Ink and film ----------------------------------------------------- */
+  --color-paper: #f1f3f5;
+  --color-sheet: #ffffff;
+  --color-ink: #0b0b0c;
+  --color-ink-2: #3b3f45;
+  --color-ink-3: #6a7078;
+  --color-rule: #c9cdd2;
+  --color-rule-soft: #e3e6e9;
+
+  /* --- The markup pass -------------------------------------------------- */
+  --color-markup: #ea580c;
+  --color-markup-ink: #9a3412;
+  --color-markup-wash: #fff2e8;
+
+  /* --- The approval stamp ----------------------------------------------- */
+  --color-approved: #1f6f3d;
+  --color-approved-wash: #eaf5ee;
+
+  /* --- Faces ------------------------------------------------------------ */
+  --font-lettering: var(--font-archivo-narrow), 'Arial Narrow', sans-serif;
+  --font-body: var(--font-archivo), system-ui, sans-serif;
+
+  /* Square. A drawing office has no rounded corners. */
+  --radius-chip: 2px;
+}
+
+@layer base {
+  html {
+    -webkit-text-size-adjust: 100%;
+  }
+
+  body {
+    background: var(--color-paper);
+    color: var(--color-ink);
+    font-family: var(--font-body);
+    font-size: 0.9375rem;
+    line-height: 1.6;
+    /* Drafting numerals sit in columns; keep them aligned everywhere by
+       default rather than opting in per component. */
+    font-variant-numeric: tabular-nums;
+  }
+
+  /* Focus is a drafting outline, never a soft ring. currentColor rather than a
+     fixed ink, so it stays visible on the black title-block grounds where a
+     black outline would be invisible. */
+  :focus-visible {
+    outline: 2px solid currentColor;
+    outline-offset: 2px;
+  }
+
+  /* On black grounds the markup colour reads far better than white. */
+  .on-ink :focus-visible {
+    outline-color: var(--color-markup);
+  }
+
+  ::selection {
+    background: var(--color-markup);
+    color: var(--color-ink);
+  }
+}
+
+@layer components {
+  /* THE SIGNATURE. Tracked caps in the narrow cut: every field label, column
+     header, and title-block key. Never a sentence. */
+  .lettering {
+    font-family: var(--font-lettering);
+    font-weight: 600;
+    font-size: 0.6875rem;
+    letter-spacing: 0.12em;
+    text-transform: uppercase;
+    line-height: 1;
+  }
+
+  .display {
+    font-family: var(--font-lettering);
+    font-weight: 700;
+    font-size: clamp(2rem, 6vw, 3.75rem);
+    line-height: 0.95;
+    letter-spacing: -0.02em;
+    text-wrap: balance;
+  }
+
+  .heading {
+    font-family: var(--font-lettering);
+    font-weight: 700;
+    font-size: clamp(1.25rem, 2.5vw, 1.75rem);
+    line-height: 1.1;
+    letter-spacing: -0.01em;
+    text-wrap: balance;
+  }
+
+  /* Reference numbers, dates, salaries, revision rows. */
+  .data {
+    font-size: 0.8125rem;
+    font-weight: 500;
+    letter-spacing: 0.01em;
+    font-variant-numeric: tabular-nums;
+  }
+
+  /* Long-form job descriptions, kept inside a comfortable measure.
+     overflow-wrap because this is arbitrary user text — a pasted URL would
+     otherwise push the sheet wider than a phone. */
+  .prose-sheet {
+    max-width: 68ch;
+    line-height: 1.7;
+    white-space: pre-line;
+    overflow-wrap: anywhere;
+  }
+
+  /* HATCHING — the drafting notation for cut, void, superseded, closed.
+     Used as a real state fill so "this is finished" has a world-native mark
+     rather than merely grey text. */
+  .hatched {
+    background-image: repeating-linear-gradient(
+      45deg,
+      transparent,
+      transparent 5px,
+      color-mix(in srgb, var(--color-ink) 7%, transparent) 5px,
+      color-mix(in srgb, var(--color-ink) 7%, transparent) 6px
+    );
+  }
+
+  /* The revision triangle: a drafting revision is flagged with a lettered
+     triangle at the changed item. The most recognisable mark in the language. */
+  .rev-triangle {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    width: 1.5rem;
+    height: 1.35rem;
+    clip-path: polygon(50% 0%, 100% 100%, 0% 100%);
+    padding-top: 0.3rem;
+    font-size: 0.625rem;
+    font-weight: 700;
+    line-height: 1;
+  }
+}
+
+/* THE ONE AUTHORED MOMENT.
+   A status change draws its markup rule in, the way a revision is clouded on
+   a drawing. Used on the current row of a revision table and nowhere else. */
+@keyframes markup-draw {
+  from {
+    transform: scaleX(0);
+  }
+  to {
+    transform: scaleX(1);
+  }
+}
+
+.markup-rule {
+  transform-origin: left center;
+  animation: markup-draw 220ms cubic-bezier(0.16, 1, 0.3, 1) both;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  *,
+  *::before,
+  *::after {
+    animation-duration: 0.01ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 0.01ms !important;
+    scroll-behavior: auto !important;
+  }
+}
