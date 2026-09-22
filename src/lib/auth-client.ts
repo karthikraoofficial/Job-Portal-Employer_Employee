@@ -17,7 +17,8 @@ import type { auth } from './auth';
  * no server code reaches the browser bundle.
  */
 export const authClient = createAuthClient({
-  baseURL: process.env.NEXT_PUBLIC_APP_URL ?? 'http://localhost:3000',
+  // Unset means "same origin as the page", so any dev port works.
+  baseURL: process.env.NEXT_PUBLIC_APP_URL,
   plugins: [inferAdditionalFields<typeof auth>()],
 });
 
