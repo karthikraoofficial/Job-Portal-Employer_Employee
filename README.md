@@ -17,13 +17,23 @@ You need **Node.js 22+**. You do *not* need Docker.
 npm install        # once
 npm run db:start   # starts a local Postgres (background)
 npm run db:push    # creates the tables
-npm run db:seed    # adds 12 sample jobs so the site is not empty
+npm run db:seed    # sample companies, jobs, applicants and two demo logins
 npm run dev        # http://localhost:3000
 ```
 
 Open http://localhost:3000/jobs to browse and search listings. Register at
 /register — choose "Find a job" or "Hire people" and you land on the matching
 dashboard. As an employer, add your company details, then post a job.
+
+Or skip registering and use a seeded demo account (password `demo-password`):
+
+| Account | Email | What you'll see |
+|---|---|---|
+| Employer | `employer@demo.seed` | Bluebird Technologies, with applicants at several pipeline stages |
+| Job seeker | `seeker@demo.seed` | A profile and three applications: one in interview, one pending, one rejected |
+
+Set `NEXT_PUBLIC_DEMO_MODE="true"` to show one-click buttons for these on the
+login page. Re-running `npm run db:seed` resets both accounts.
 
 To stop the database later: `npm run db:stop`.
 
@@ -65,7 +75,8 @@ src/
     validation/    Zod schemas shared by forms and server code
     applications.ts  the hiring pipeline: stages, labels, terminal states
     jobs/search.ts   full-text search + filters, in parameterised SQL
-    storage/         where uploaded files live (local disk today, S3 later)
+    storage/         where uploaded files live: local disk, or Postgres (STORAGE_DRIVER=db)
+    demo.ts          the public demo accounts
     resume-file.ts   upload validation by file contents
   server/actions/  every mutation; each re-checks auth and ownership
   proxy.ts         route protection
@@ -141,6 +152,45 @@ SHADOW_DATABASE_URL="postgres://jobportal:jobportal@localhost:5432/jobportal_sha
 
 and `npm run db:migrate` will work. `docker-compose.yml` also gives you Adminer
 at http://localhost:8080 for browsing the database.
+
+---
+
+## Deploying to Vercel
+
+The live demo runs on Vercel with a Neon Postgres database, both on free plans.
+
+1. **Import the repo** at [vercel.com/new](https://vercel.com/new). Vercel detects
+   Next.js; leave the build settings alone. The site won't work until the
+   steps below are done.
+2. **Add a database:** in the Vercel project, open *Storage* → *Create* → *Neon*
+   and connect it to the project. Check that `DATABASE_URL` now appears under
+   *Settings* → *Environment Variables*.
+3. **Set environment variables** (*Settings* → *Environment Variables*):
+
+   | Name | Value |
+   |---|---|
+   | `BETTER_AUTH_SECRET` | output of `openssl rand -base64 32` |
+   | `STORAGE_DRIVER` | `db` — Vercel has no persistent disk |
+   | `NEXT_PUBLIC_DEMO_MODE` | `true` for a public demo |
+
+   Do **not** set `BETTER_AUTH_URL` unless it is exactly the site's address.
+   A mismatch makes every sign-in fail with "Invalid origin"; left unset, it is
+   taken from each request.
+4. **Create the tables and demo data**, once, from your machine. Use the
+   *unpooled* connection string (`DATABASE_URL_UNPOOLED`, shown in the Neon tab
+   in Vercel): schema changes need a direct connection. PowerShell shown:
+
+   ```powershell
+   $env:DATABASE_URL = "<Neon connection string>"
+   npm run db:push
+   npm run db:seed
+   Remove-Item Env:DATABASE_URL
+   ```
+
+5. **Redeploy** (*Deployments* → *⋯* → *Redeploy*). Every later push to `main`
+   deploys automatically.
+
+To undo whatever demo visitors have changed, run step 4 again.
 
 ---
 

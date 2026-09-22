@@ -1,7 +1,10 @@
 import 'dotenv/config';
 import { PrismaPg } from '@prisma/adapter-pg';
+import { hashPassword } from 'better-auth/crypto';
 
 import { PrismaClient } from '../src/generated/prisma/client';
+import type { ApplicationStatus } from '../src/generated/prisma/enums';
+import { DEMO_ACCOUNTS, DEMO_PASSWORD } from '../src/lib/demo';
 
 // Fills an empty database with companies and job listings so the search page
 // has something to show. Safe to run repeatedly - it clears its own data first.
@@ -19,7 +22,8 @@ const COMPANIES = [
     location: 'Bengaluru, India',
     website: 'https://bluebird.example.com',
     description: 'We build developer tools used by teams across India.',
-    email: 'hiring@bluebird.seed',
+    // Bluebird is the company the demo employer account manages.
+    email: DEMO_ACCOUNTS.employer.email,
   },
   {
     name: 'Nimbus Labs',
@@ -230,17 +234,115 @@ const JOBS: SeedJob[] = [
   },
 ];
 
+const SEEKERS = [
+  {
+    name: 'Demo Job Seeker',
+    email: DEMO_ACCOUNTS.seeker.email,
+    headline: 'Frontend developer, 3 years in React and TypeScript',
+    location: 'Bengaluru, India',
+    experienceYears: 3,
+    skills: ['React', 'TypeScript', 'Next.js', 'Tailwind CSS', 'Accessibility'],
+  },
+  {
+    name: 'Priya Raman',
+    email: 'priya@applicant.seed',
+    headline: 'Frontend engineer who likes design systems',
+    location: 'Chennai, India',
+    experienceYears: 4,
+    skills: ['React', 'CSS', 'Storybook'],
+  },
+  {
+    name: 'Arjun Mehta',
+    email: 'arjun@applicant.seed',
+    headline: 'Final-year CS student',
+    location: 'Pune, India',
+    experienceYears: 0,
+    skills: ['JavaScript', 'Playwright', 'SQL'],
+  },
+  {
+    name: 'Meera Iyer',
+    email: 'meera@applicant.seed',
+    headline: 'Backend developer moving from Java to Node.js',
+    location: 'Bengaluru, India',
+    experienceYears: 2,
+    skills: ['Node.js', 'PostgreSQL', 'Java'],
+  },
+];
+
+type SeedApplication = {
+  seeker: string;
+  job: string;
+  // Every status the application has passed through, oldest first.
+  path: ApplicationStatus[];
+  daysAgo: number;
+  coverLetter?: string;
+};
+
+// Enough history that both demo dashboards have something to show: the demo
+// employer (Bluebird) gets a pipeline with applicants at several stages, and the
+// demo seeker gets a timeline with progress, a pending application and a rejection.
+const APPLICATIONS: SeedApplication[] = [
+  {
+    seeker: DEMO_ACCOUNTS.seeker.email,
+    job: 'Frontend Developer',
+    path: ['APPLIED', 'SHORTLISTED', 'INTERVIEW'],
+    daysAgo: 6,
+    coverLetter:
+      'I have spent three years building accessible React interfaces and would love to own features end to end at Bluebird.',
+  },
+  {
+    seeker: DEMO_ACCOUNTS.seeker.email,
+    job: 'Backend Engineer',
+    path: ['APPLIED'],
+    daysAgo: 3,
+  },
+  {
+    seeker: DEMO_ACCOUNTS.seeker.email,
+    job: 'UI/UX Designer',
+    path: ['APPLIED', 'REJECTED'],
+    daysAgo: 5,
+  },
+  {
+    seeker: 'priya@applicant.seed',
+    job: 'Frontend Developer',
+    path: ['APPLIED', 'SHORTLISTED'],
+    daysAgo: 5,
+    coverLetter: 'I maintain the component library at my current company.',
+  },
+  {
+    seeker: 'arjun@applicant.seed',
+    job: 'Frontend Developer',
+    path: ['APPLIED'],
+    daysAgo: 2,
+  },
+  {
+    seeker: 'arjun@applicant.seed',
+    job: 'QA Automation Intern',
+    path: ['APPLIED'],
+    daysAgo: 1,
+    coverLetter: 'I already write Playwright tests for my college project.',
+  },
+  {
+    seeker: 'meera@applicant.seed',
+    job: 'Junior Backend Engineer',
+    path: ['APPLIED', 'SHORTLISTED', 'INTERVIEW', 'OFFERED'],
+    daysAgo: 2,
+  },
+];
+
 const daysAgo = (days: number) => new Date(Date.now() - days * 86_400_000);
 
 async function main() {
-  // Remove anything from a previous seed run. Deleting the employer cascades to
-  // their company and jobs, so real accounts you created are left alone.
+  // Remove anything from a previous seed run. Deleting a seeded user cascades to
+  // their company, jobs, applications and sessions, so real accounts you created
+  // are left alone - and the public demo accounts are reset to a clean state.
   const removed = await prisma.user.deleteMany({
     where: { email: { endsWith: '.seed' } },
   });
-  if (removed.count > 0) console.log(`cleared ${removed.count} seeded employer(s)`);
+  if (removed.count > 0) console.log(`cleared ${removed.count} seeded user(s)`);
 
   const companyIds = new Map<string, string>();
+  const companyOwnerIds = new Map<string, string>();
 
   for (const company of COMPANIES) {
     const { email, ...companyData } = company;
@@ -257,14 +359,17 @@ async function main() {
     });
 
     companyIds.set(company.slug, owner.company!.id);
+    companyOwnerIds.set(company.slug, owner.id);
   }
   console.log(`created ${COMPANIES.length} companies`);
+
+  const jobs = new Map<string, { id: string; company: string }>();
 
   for (const job of JOBS) {
     const { company, daysAgo: age, ...jobData } = job;
     const publishedAt = daysAgo(age);
 
-    await prisma.job.create({
+    const created = await prisma.job.create({
       data: {
         ...jobData,
         slug: `${job.title.toLowerCase().replace(/[^a-z0-9]+/g, '-')}-${company}`,
@@ -274,8 +379,70 @@ async function main() {
         companyId: companyIds.get(company)!,
       },
     });
+    jobs.set(job.title, { id: created.id, company });
   }
   console.log(`created ${JOBS.length} published jobs`);
+
+  const seekerIds = new Map<string, string>();
+
+  for (const { name, email, ...profile } of SEEKERS) {
+    const seeker = await prisma.user.create({
+      data: {
+        name,
+        email,
+        role: 'SEEKER',
+        emailVerified: true,
+        seekerProfile: { create: profile },
+      },
+    });
+    seekerIds.set(email, seeker.id);
+  }
+  console.log(`created ${SEEKERS.length} job seekers`);
+
+  // Only the two demo accounts can log in. Better Auth keeps email+password
+  // credentials in the account table under the "credential" provider.
+  const passwordHash = await hashPassword(DEMO_PASSWORD);
+  const demoUserIds = [
+    companyOwnerIds.get('bluebird-technologies')!,
+    seekerIds.get(DEMO_ACCOUNTS.seeker.email)!,
+  ];
+  for (const userId of demoUserIds) {
+    await prisma.account.create({
+      data: { userId, accountId: userId, providerId: 'credential', password: passwordHash },
+    });
+  }
+
+  for (const application of APPLICATIONS) {
+    const job = jobs.get(application.job)!;
+    const seekerId = seekerIds.get(application.seeker)!;
+    const employerId = companyOwnerIds.get(job.company)!;
+    const appliedAt = daysAgo(application.daysAgo);
+
+    await prisma.application.create({
+      data: {
+        jobId: job.id,
+        seekerId,
+        status: application.path.at(-1)!,
+        coverLetter: application.coverLetter,
+        createdAt: appliedAt,
+        // One history event per step, a few hours apart: the seeker applies,
+        // then the employer moves them along.
+        events: {
+          create: application.path.map((toStatus, step) => ({
+            fromStatus: step === 0 ? null : application.path[step - 1],
+            toStatus,
+            actorId: step === 0 ? seekerId : employerId,
+            createdAt: new Date(appliedAt.getTime() + step * 6 * 3_600_000),
+          })),
+        },
+      },
+    });
+  }
+  console.log(`created ${APPLICATIONS.length} applications`);
+
+  console.log(`\nDemo logins (password "${DEMO_PASSWORD}"):`);
+  console.log(`  employer  ${DEMO_ACCOUNTS.employer.email}`);
+  console.log(`  seeker    ${DEMO_ACCOUNTS.seeker.email}`);
   console.log('\nSeed complete. Visit http://localhost:3000/jobs');
 }
 

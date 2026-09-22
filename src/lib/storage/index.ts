@@ -1,5 +1,6 @@
 import 'server-only';
 
+import { databaseStorageDriver } from './database';
 import { localStorageDriver } from './local';
 
 /**
@@ -20,6 +21,7 @@ export interface StorageDriver {
 
 const DRIVERS: Record<string, StorageDriver> = {
   local: localStorageDriver,
+  db: databaseStorageDriver,
 };
 
 const driverName = process.env.STORAGE_DRIVER ?? 'local';

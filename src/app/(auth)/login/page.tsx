@@ -5,6 +5,7 @@ import { useRouter, useSearchParams } from 'next/navigation';
 import Link from 'next/link';
 
 import { signIn } from '@/lib/auth-client';
+import { DEMO_ACCOUNTS, DEMO_PASSWORD, type DemoRole, isDemoMode } from '@/lib/demo';
 import { loginSchema } from '@/lib/validation/auth';
 import { Alert, Button, Field, Sheet, TitleBlock } from '@/components/ui';
 
@@ -45,11 +46,18 @@ function LoginForm() {
       return;
     }
 
+    // `next` is where proxy.ts sent them from. Same-site paths only, so this
+    // cannot be used to bounce someone to another domain.
+    const next = searchParams.get('next');
+    const destination = next?.startsWith('/') && !next.startsWith('//') ? next : '/';
+
+    await signInAndGo(parsed.data.email, parsed.data.password, destination);
+  }
+
+  async function signInAndGo(email: string, password: string, destination: string) {
+    setFormError('');
     setSubmitting(true);
-    const { error } = await signIn.email({
-      email: parsed.data.email,
-      password: parsed.data.password,
-    });
+    const { error } = await signIn.email({ email, password });
     setSubmitting(false);
 
     if (error) {
@@ -59,13 +67,13 @@ function LoginForm() {
       return;
     }
 
-    // `next` is where proxy.ts sent them from. Same-site paths only, so this
-    // cannot be used to bounce someone to another domain.
-    const next = searchParams.get('next');
-    const destination = next?.startsWith('/') && !next.startsWith('//') ? next : '/';
-
     router.push(destination);
     router.refresh();
+  }
+
+  function tryDemo(role: DemoRole) {
+    const account = DEMO_ACCOUNTS[role];
+    return signInAndGo(account.email, DEMO_PASSWORD, account.home);
   }
 
   return (
@@ -105,6 +113,30 @@ function LoginForm() {
             {submitting ? 'Signing in' : 'Sign in'}
           </Button>
         </form>
+
+        {isDemoMode && (
+          <div className="mt-8 border-t border-rule pt-6">
+            <p className="data text-ink-3">Just looking? Try a demo account.</p>
+            <div className="mt-3 grid gap-3 sm:grid-cols-2">
+              <Button
+                type="button"
+                variant="secondary"
+                disabled={submitting}
+                onClick={() => tryDemo('seeker')}
+              >
+                Try as job seeker
+              </Button>
+              <Button
+                type="button"
+                variant="secondary"
+                disabled={submitting}
+                onClick={() => tryDemo('employer')}
+              >
+                Try as employer
+              </Button>
+            </div>
+          </div>
+        )}
       </Sheet>
     </div>
   );

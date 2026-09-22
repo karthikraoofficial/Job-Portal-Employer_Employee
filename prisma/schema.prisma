@@ -107,8 +107,9 @@ model SeekerProfile {
   experienceYears Int?
   skills          String[] @default([])
 
-  // The resume lives on disk (or S3 later). We store the storage key, never a
-  // public URL - downloads go through an authorised route.
+  // The resume lives on disk or in stored_file, depending on STORAGE_DRIVER. We
+  // store the storage key, never a public URL - downloads go through an
+  // authorised route.
   resumeKey       String?
   resumeFilename  String?
   resumeSize      Int?
@@ -273,6 +274,22 @@ model DismissedJob {
 
   @@unique([userId, jobId])
   @@map("dismissed_job")
+}
+
+// ---------------------------------------------------------------------------
+// File storage
+// ---------------------------------------------------------------------------
+
+/// Uploaded file contents, used when STORAGE_DRIVER=db. Hosts such as Vercel
+/// have no persistent disk, so resumes live in Postgres instead. The key is the
+/// same opaque value the rest of the app stores in resumeKey.
+model StoredFile {
+  key       String   @id
+  data      Bytes
+  size      Int
+  createdAt DateTime @default(now())
+
+  @@map("stored_file")
 }
 
 // ---------------------------------------------------------------------------
