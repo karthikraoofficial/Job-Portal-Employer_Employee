@@ -1,11 +1,47 @@
 # Job Portal
 
-A two-sided job portal: employers post roles and manage applicants, job seekers
-search, apply, and track their applications.
+A two-sided job portal: employers post roles and move applicants through a
+hiring pipeline, and job seekers search, apply and track every application.
 
-**Status: Phases 1-4 of 5 complete and verified.** Accounts, job posting, search,
-applying, the hiring pipeline, profiles and resume upload all work. Email
-notifications are the only piece left — see [Roadmap](#roadmap).
+**[Live demo →](https://job-portal-employer-employee.vercel.app/login)**. Click
+*Try as employer* or *Try as job seeker*. No sign-up needed.
+
+![Job search with filters and salary sorting](docs/screenshots/jobs.png)
+
+| Employer: hiring pipeline | Job seeker: application tracking |
+|---|---|
+| ![Employer view of applicants for a listing, with pipeline counts and stage buttons](docs/screenshots/employer-pipeline.png) | ![Job seeker's applications with status tracker and revision history](docs/screenshots/seeker-applications.png) |
+
+## Features
+
+**For job seekers**
+- Full-text job search (stemmed, so "engineers" finds "engineer") with filters for
+  location, type, level, salary and remote, plus sorting and pagination
+- Apply with a cover letter; the resume on file is snapshotted with the application
+- A timeline of every status change, and the option to withdraw
+- A profile with skills and a resume upload
+
+**For employers**
+- Company profile; create, edit, publish, close and reopen listings
+- Applicants per listing with funnel counts: Applied → Shortlisted →
+  Interviewing → Offer → Hired, or Rejected
+- An append-only audit trail of every decision
+
+**Built carefully**
+- Every page and action re-checks the user's role and ownership on the server
+- Resumes are validated by their file contents rather than their name, and are
+  only downloadable by the applicant and the hiring employer
+- Search is injection-proof (all bound parameters), and job pages are
+  server-rendered with per-listing SEO metadata
+- Phone-friendly layout
+
+<img src="docs/screenshots/mobile-menu.png" alt="Mobile view with the navigation menu open" width="260">
+
+**Tech:** Next.js 16 (App Router, Server Actions) · TypeScript · PostgreSQL ·
+Prisma 7 · Better Auth · Tailwind CSS 4 · Zod · deployed on Vercel + Neon.
+
+**Status:** phases 1–4 of 5 are complete. Email notifications are next; see
+[Roadmap](#roadmap). Licensed under [MIT](LICENSE).
 
 ---
 
