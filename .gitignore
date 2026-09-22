@@ -46,3 +46,10 @@ next-env.d.ts
 /uploads
 /src/generated
 .env
+
+# AI coding-assistant files (kept locally, not published)
+/.agents
+/.claude
+/.windsurf
+/.impeccable
+skills-lock.json
