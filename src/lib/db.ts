@@ -23,11 +23,21 @@ function createPrismaClient() {
 // client (and a new pool of database connections) on every save until the
 // database refuses new connections. Caching on globalThis keeps exactly one.
 const globalForPrisma = globalThis as unknown as {
-  prisma: ReturnType<typeof createPrismaClient> | undefined;
+  prisma: PrismaClient | undefined;
 };
 
-export const prisma = globalForPrisma.prisma ?? createPrismaClient();
-
-if (process.env.NODE_ENV !== 'production') {
-  globalForPrisma.prisma = prisma;
+function getPrismaClient() {
+  return (globalForPrisma.prisma ??= createPrismaClient());
 }
+
+// The client is created on first use, not when this module is imported.
+// `next build` imports every route to collect its configuration, and a hosted
+// build step may not have DATABASE_URL - so a missing URL should fail the first
+// query, not the whole build.
+export const prisma = new Proxy({} as PrismaClient, {
+  get(_target, property) {
+    const client = getPrismaClient();
+    const value = Reflect.get(client, property, client);
+    return typeof value === 'function' ? value.bind(client) : value;
+  },
+});
