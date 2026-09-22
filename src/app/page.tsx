@@ -43,7 +43,7 @@ export default async function HomePage() {
           Welcome to
           {/* markup as text is permitted at display scale only — 3.6:1 clears
               the 3:1 large-text threshold but would fail at body size. */}
-          <span className="text-markup"> Kdawg&rsquo;s Job Portal</span>
+          <span className="text-markup"> Karthik Rao&rsquo;s Job Portal</span>
         </h1>
 
         <p className="prose-sheet mt-6 text-ink-2">
