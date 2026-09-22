@@ -7,13 +7,19 @@ import { usePathname } from 'next/navigation';
  * Navigation cells in the master title block. The active cell is marked in the
  * markup colour with a 2px underline — the drawing's current sheet.
  */
-export function HeaderNav({ links }: { links: { href: string; label: string }[] }) {
+export type NavLink = { href: string; label: string };
+
+export function isActiveLink(pathname: string, href: string) {
+  return pathname === href || pathname.startsWith(`${href}/`);
+}
+
+export function HeaderNav({ links }: { links: NavLink[] }) {
   const pathname = usePathname();
 
   return (
     <nav className="flex flex-wrap items-stretch">
       {links.map((link) => {
-        const active = pathname === link.href || pathname.startsWith(`${link.href}/`);
+        const active = isActiveLink(pathname, link.href);
 
         return (
           <Link
