@@ -11,7 +11,7 @@ import {
   formatRelative,
   formatSalary,
 } from '@/lib/format';
-import { ButtonLink, Sheet, Stamp, TitleBlock } from '@/components/ui';
+import { ButtonLink, Stamp, TitleBlock } from '@/components/ui';
 
 type Props = { params: Promise<{ slug: string }> };
 
