@@ -12,6 +12,5 @@ export default function robots(): MetadataRoute.Robots {
       disallow: ['/seeker', '/employer', '/api/', '/login', '/register', '/jobs/*/apply'],
     },
     sitemap: `${siteUrl()}/sitemap.xml`,
-    host: siteUrl(),
   };
 }

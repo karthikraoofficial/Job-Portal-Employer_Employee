@@ -12,6 +12,8 @@ import {
   formatSalary,
 } from '@/lib/format';
 import { ButtonLink, Stamp, TitleBlock } from '@/components/ui';
+import { JsonLd } from '@/components/JsonLd';
+import { jobPostingJsonLd, SITE_NAME, siteUrl } from '@/lib/seo';
 
 type Props = { params: Promise<{ slug: string }> };
 
@@ -25,11 +27,26 @@ export async function generateMetadata({ params }: Props): Promise<Metadata> {
   const { slug } = await params;
   const job = await getJob(slug);
 
-  if (!job || job.status !== 'PUBLISHED') return { title: 'Listing not found' };
+  if (!job || job.status !== 'PUBLISHED') {
+    return { title: 'Listing not found', robots: { index: false, follow: false } };
+  }
+
+  const title = `${job.title} at ${job.company.name}`;
+  const where = job.isRemote ? 'Remote' : job.location;
+  const description = `${where ? `${where} · ` : ''}${employmentTypeLabel(job.employmentType)}. ${job.description}`
+    .replace(/\s+/g, ' ')
+    .slice(0, 155);
+  const url = `/jobs/${job.slug}`;
 
   return {
-    title: `${job.title} at ${job.company.name}`,
-    description: job.description.slice(0, 155),
+    title,
+    description,
+    keywords: [job.title, job.company.name, `${job.title} jobs`, where, 'job opening'].filter(
+      (k): k is string => Boolean(k)
+    ),
+    alternates: { canonical: url },
+    openGraph: { type: 'article', url, title, description, siteName: SITE_NAME, locale: 'en_IN' },
+    twitter: { card: 'summary_large_image', title, description },
   };
 }
 
@@ -55,6 +72,8 @@ export default async function JobDetailPage({ params }: Props) {
 
   return (
     <>
+      {job.status === 'PUBLISHED' && <JsonLd data={jobPostingJsonLd(job, siteUrl())} />}
+
       <Link
         href="/jobs"
         className="lettering mb-4 inline-block text-ink-3 transition-colors duration-150 hover:text-markup-ink"

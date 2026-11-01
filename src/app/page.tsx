@@ -1,9 +1,16 @@
 import Link from 'next/link';
+import type { Metadata } from 'next';
 
 import { prisma } from '@/lib/db';
 import { getCurrentUser } from '@/lib/session';
 import { formatRelative } from '@/lib/format';
 import { ButtonLink, Sheet, TitleBlock } from '@/components/ui';
+import { JsonLd } from '@/components/JsonLd';
+import { SITE_DESCRIPTION, SITE_NAME, siteUrl } from '@/lib/seo';
+
+export const metadata: Metadata = {
+  alternates: { canonical: '/' },
+};
 
 export default async function HomePage() {
   const user = await getCurrentUser();
@@ -25,8 +32,26 @@ export default async function HomePage() {
     year: 'numeric',
   });
 
+  const base = siteUrl();
+
   return (
     <>
+      {/* Lets Google show a search box for the site in its results. */}
+      <JsonLd
+        data={{
+          '@context': 'https://schema.org',
+          '@type': 'WebSite',
+          name: SITE_NAME,
+          description: SITE_DESCRIPTION,
+          url: base,
+          potentialAction: {
+            '@type': 'SearchAction',
+            target: { '@type': 'EntryPoint', urlTemplate: `${base}/jobs?q={search_term_string}` },
+            'query-input': 'required name=search_term_string',
+          },
+        }}
+      />
+
       {/* The thesis, stated as a drawing sheet's title block. */}
       <TitleBlock
         tone="dark"

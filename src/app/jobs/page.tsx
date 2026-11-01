@@ -9,8 +9,12 @@ import { JobFilters } from '@/components/JobFilters';
 import { EmptyState, Sheet, TitleBlock } from '@/components/ui';
 
 export const metadata = {
-  title: 'Register of openings',
-  description: 'Open roles from companies hiring now.',
+  title: 'Browse jobs: open roles from companies hiring now',
+  description:
+    'Search open jobs in India and remote roles by keyword, location, job type and experience level. Full-time, part-time, contract and internship openings, updated as employers post them.',
+  keywords: ['browse jobs', 'job openings', 'jobs hiring now', 'remote jobs', 'internships', 'jobs in India'],
+  // Filtered and paged views all point back to the one register page.
+  alternates: { canonical: '/jobs' },
 };
 
 // `searchParams` is a Promise in Next.js 16.

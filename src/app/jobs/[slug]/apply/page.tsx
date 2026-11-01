@@ -7,7 +7,7 @@ import { employmentTypeLabel, formatSalary } from '@/lib/format';
 import { TitleBlock } from '@/components/ui';
 import { ApplyForm } from './ApplyForm';
 
-export const metadata = { title: 'Apply' };
+export const metadata = { title: 'Apply', robots: { index: false, follow: false } };
 
 export default async function ApplyPage({ params }: { params: Promise<{ slug: string }> }) {
   const { slug } = await params;
