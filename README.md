@@ -33,6 +33,9 @@ hiring pipeline, and job seekers search, apply and track every application.
   only downloadable by the applicant and the hiring employer
 - Search is injection-proof (all bound parameters), and job pages are
   server-rendered with per-listing SEO metadata
+- Search-engine ready: sitemap, robots.txt, canonical URLs, link-preview
+  cards, and schema.org `JobPosting` data so listings can appear in Google's
+  job search
 - Phone-friendly layout
 
 <img src="docs/screenshots/mobile-menu.png" alt="Mobile view with the navigation menu open" width="260">
@@ -113,9 +116,11 @@ src/
     jobs/search.ts   full-text search + filters, in parameterised SQL
     storage/         where uploaded files live: local disk, or Postgres (STORAGE_DRIVER=db)
     demo.ts          the public demo accounts
+    seo.ts           site URL, keywords, JobPosting data, sitemap entries
     resume-file.ts   upload validation by file contents
   server/actions/  every mutation; each re-checks auth and ownership
   proxy.ts         route protection
+  app/sitemap.ts, app/robots.ts, app/opengraph-image.tsx   search and link previews
 prisma/schema.prisma
 uploads/           uploaded resumes - gitignored, never served directly
 ```
@@ -228,6 +233,36 @@ The live demo runs on Vercel with a Neon Postgres database, both on free plans.
 
 To undo whatever demo visitors have changed, run step 4 again.
 
+## SEO and Google Search Console
+
+The site serves `/sitemap.xml` (home, `/jobs` and every open listing),
+`/robots.txt` (keeps dashboards, sign-in pages and apply forms out of search),
+canonical URLs, Open Graph and Twitter cards, and schema.org `JobPosting` data
+on each listing page.
+
+Two optional environment variables control it:
+
+| Name | Value |
+|---|---|
+| `NEXT_PUBLIC_SITE_URL` | The public address, e.g. `https://jobs.example.com`. Only needed for a custom domain: on Vercel the production `*.vercel.app` address is used automatically. |
+| `GOOGLE_SITE_VERIFICATION` | The token from Search Console's HTML-tag method. When set, every page carries `<meta name="google-site-verification">`. |
+
+**Verifying with Google:**
+
+1. In [Search Console](https://search.google.com/search-console), *Add property*
+   → **URL prefix** → enter the site's address, e.g.
+   `https://job-portal-employer-employee.vercel.app/`.
+2. Under *Other verification methods*, choose **HTML tag**. Copy only the
+   `content` value from the tag it shows, e.g. `abc123…` from
+   `<meta name="google-site-verification" content="abc123…" />`.
+3. In Vercel, add `GOOGLE_SITE_VERIFICATION` with that value (Production
+   environment), then **Redeploy**.
+4. Back in Search Console, click **Verify**.
+5. Open *Sitemaps* and submit `sitemap.xml`.
+6. Optional: paste a listing URL into Google's
+   [Rich Results Test](https://search.google.com/test/rich-results) to check
+   its `JobPosting` data.
+
 ---
 
 ## Commands
@@ -240,6 +275,7 @@ To undo whatever demo visitors have changed, run step 4 again.
 | `npm run db:seed` | Load 12 sample jobs (safe to re-run) |
 | `npm run db:studio` | Visual database browser |
 | `npm run typecheck` | TypeScript check - must pass before any phase is done |
+| `npm test` | Unit tests (Vitest) |
 | `npm run build` | Production build |
 
 ---
@@ -345,7 +381,8 @@ with JavaScript disabled would submit it.
   away. Turn it on in `src/lib/auth.ts` once Phase 5 wires up email sending.
 - **`BETTER_AUTH_SECRET` in `.env` is a placeholder.** Generate a real one
   (`openssl rand -base64 32`) before deploying anywhere.
-- **No tests yet.** Verification so far has been manual, against the running app.
+- **Few automated tests.** Only the SEO module (`src/lib/seo.ts`) has unit
+  tests; everything else has been verified by hand against the running app.
 - **Job search recomputes the search index on every query.** `to_tsvector` runs
   per row rather than being stored. That is fine into the low tens of thousands
   of listings; past that, add a stored `tsvector` column with a GIN index — which
